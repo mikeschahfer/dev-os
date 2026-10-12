@@ -35,7 +35,10 @@ async function limitAuth(email?: string): Promise<AuthActionState | null> {
     return null;
   } catch (err) {
     if (err instanceof AppError && err.code === 'RATE_LIMITED') return fail('RATE_LIMITED');
-    throw err;
+    // Limiter unavailable (e.g. migration not applied, env misconfigured): fail closed with a
+    // friendly message instead of crashing the page.
+    logger.error('auth.rate_limit_unavailable', { err });
+    return fail('INTERNAL');
   }
 }
 
