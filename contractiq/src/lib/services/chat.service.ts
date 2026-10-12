@@ -1,6 +1,6 @@
 import 'server-only';
 import { mockChatAnswer } from '@/lib/ai/mock';
-import { hashUserId, mapOpenAiError, openai, withRetry } from '@/lib/ai/openai-client';
+import { getOpenAI, hashUserId, mapOpenAiError, withRetry } from '@/lib/ai/openai-client';
 import { buildChatMessages, CHAT_PROMPT_VERSION } from '@/lib/ai/prompts/chat/v2';
 import { isMissingAttribution, parseCitations } from '@/lib/chat/citations';
 import { prepareTurn } from '@/lib/chat/memory';
@@ -214,7 +214,7 @@ export async function streamAnswer(
           const signal = AbortSignal.any([requestSignal, AbortSignal.timeout(45_000)]);
           // Retries only cover failures before streaming starts.
           const completion = await withRetry(() =>
-            openai.chat.completions.create(
+            getOpenAI().chat.completions.create(
               {
                 model: env.OPENAI_CHAT_MODEL,
                 temperature: 0.4,

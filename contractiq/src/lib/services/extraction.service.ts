@@ -3,7 +3,7 @@ import type OpenAI from 'openai';
 import { buildExtractionMessages, EXTRACTION_PROMPT_VERSION } from '@/lib/ai/prompts/extraction/v1';
 import type { RequestedTerm } from '@/lib/ai/prompts/extraction/types';
 import { mockExtraction } from '@/lib/ai/mock';
-import { hashUserId, mapOpenAiError, openai, withRetry } from '@/lib/ai/openai-client';
+import { getOpenAI, hashUserId, mapOpenAiError, withRetry } from '@/lib/ai/openai-client';
 import { EXTRACTION_JSON_SCHEMA, extractionOutputSchema, type ExtractionOutput } from '@/lib/ai/schemas';
 import { validateTerms } from '@/lib/ai/validate-terms';
 import { AppError, ERROR_CATALOG, mapPgError, type ErrorCode } from '@/lib/api/errors';
@@ -49,7 +49,7 @@ function parseOutput(message: OpenAI.Chat.Completions.ChatCompletionMessage): Ex
 
 async function callModel(messages: ChatMessages, userId: string, usage: Usage) {
   const completion = await withRetry(() =>
-    openai.chat.completions.create(
+    getOpenAI().chat.completions.create(
       {
         model: env.OPENAI_EXTRACTION_MODEL,
         temperature: 0.1,

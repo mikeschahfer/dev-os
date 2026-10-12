@@ -4,8 +4,13 @@ import OpenAI from 'openai';
 import type { ErrorCode } from '@/lib/api/errors';
 import { env } from '@/lib/env';
 
-// Single OpenAI client; retries are handled by withRetry so we control backoff.
-export const openai = new OpenAI({ apiKey: env.OPENAI_API_KEY, maxRetries: 0, timeout: 60_000 });
+// Single OpenAI client, created on first use (never at import, so `next build` needs no secrets).
+// Retries are handled by withRetry so we control backoff.
+let client: OpenAI | undefined;
+export function getOpenAI(): OpenAI {
+  client ??= new OpenAI({ apiKey: env.OPENAI_API_KEY, maxRetries: 0, timeout: 60_000 });
+  return client;
+}
 
 // Stable, non-reversible user id for OpenAI abuse monitoring (no PII sent).
 export const hashUserId = (id: string) => createHash('sha256').update(id).digest('hex').slice(0, 32);
