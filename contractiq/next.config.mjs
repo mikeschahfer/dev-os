@@ -49,6 +49,10 @@ const nextConfig = {
   images: { unoptimized: true },
   // pdfjs-dist runs on the server for text extraction; load it from node_modules, not the bundle.
   serverExternalPackages: ['pdfjs-dist'],
+  // Belt and braces: ship the pdf.js worker with the extraction function on Vercel.
+  outputFileTracingIncludes: {
+    '/api/contracts/[id]/extract': ['./node_modules/pdfjs-dist/legacy/build/pdf.worker.mjs'],
+  },
   webpack: (config) => {
     // react-pdf: pdf.js optionally requires `canvas`, which we never use in the browser.
     config.resolve.alias.canvas = false;

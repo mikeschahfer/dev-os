@@ -119,7 +119,12 @@ export async function extractContract(
   let extracted;
   try {
     extracted = await extractPdfText(buffer, { maxPages: MAX_PAGES });
-  } catch {
+  } catch (err) {
+    const cause = err instanceof AppError ? err.cause : err;
+    logger.warn('contract.pdf_parse_failed', {
+      contractId: id,
+      error: cause instanceof Error ? `${cause.name}: ${cause.message}`.slice(0, 300) : String(cause).slice(0, 300),
+    });
     return reject('PDF_UNREADABLE');
   }
   if (extracted.pageCount > MAX_PAGES) return reject('TOO_MANY_PAGES');

@@ -19,7 +19,14 @@ interface TextItemLike {
 // Uses the same pdf.js engine as the in-browser viewer (pdfjs-dist), which handles modern PDFs
 // (object streams, newer compression) that older parsers reject.
 // When the document has more than `maxPages` pages, only the count is returned (no text).
+// pdf.js loads its worker with a dynamic import that serverless bundlers can't trace, so the
+// file is missing on Vercel. Importing it up front registers it as globalThis.pdfjsWorker,
+// which pdf.js uses directly (no file lookup) and guarantees it ships with the function.
+let workerReady: Promise<unknown> | undefined;
+const ensureWorker = () => (workerReady ??= import('pdfjs-dist/legacy/build/pdf.worker.mjs'));
+
 export async function extractPdfText(buffer: Buffer, opts: { maxPages?: number } = {}): Promise<ExtractedPdf> {
+  await ensureWorker();
   let doc;
   try {
     doc = await getDocument({
