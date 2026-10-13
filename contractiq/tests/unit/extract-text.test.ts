@@ -23,6 +23,13 @@ describe('extractPdfText', () => {
     expect((await extractPdfText(fixture('scanned.pdf'))).wordCount).toBeLessThan(100);
   });
 
+  it('includes filled-in form field values (fillable PDFs like ACORD certificates)', async () => {
+    const r = await extractPdfText(fixture('filled-form.pdf'));
+    expect(r.text).toContain('300 North End Avenue, New York, NY 10280');
+    expect(r.text).toContain('1,000,000');
+    expect(findPageOf(r.text, 'Location: 300 North End Avenue')).toBe(1);
+  });
+
   it('rejects non-PDF bytes as unreadable', async () => {
     await expect(extractPdfText(fixture('not-a-pdf.pdf'))).rejects.toMatchObject({ code: 'PDF_UNREADABLE' });
   });

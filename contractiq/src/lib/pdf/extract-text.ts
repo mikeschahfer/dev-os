@@ -9,6 +9,40 @@ export interface ExtractedPdf {
   wordCount: number;
 }
 
+interface AnnotationLike {
+  subtype?: string;
+  fieldType?: string;
+  fieldName?: string;
+  fieldValue?: unknown;
+  exportValue?: unknown;
+  checkBox?: boolean;
+  radioButton?: boolean;
+  contentsObj?: { str?: string };
+}
+
+const asText = (v: unknown): string =>
+  Array.isArray(v) ? v.filter((x) => typeof x === 'string').join(', ') : typeof v === 'string' ? v : '';
+
+// Filled-in values of fillable forms (e.g. ACORD certificates) live in form-field annotations,
+// not in the page's text content, so getTextContent() misses them. Collect them per page.
+async function formValues(page: { getAnnotations(o: { intent: string }): Promise<unknown[]> }): Promise<string[]> {
+  const out: string[] = [];
+  for (const raw of (await page.getAnnotations({ intent: 'display' })) as AnnotationLike[]) {
+    if (raw.subtype === 'Widget') {
+      if (raw.checkBox || raw.radioButton) {
+        const on = asText(raw.fieldValue);
+        if (on && on !== 'Off' && raw.fieldName) out.push(`[x] ${raw.fieldName}`);
+        continue;
+      }
+      const value = asText(raw.fieldValue).trim();
+      if (value) out.push(value);
+    } else if (raw.subtype === 'FreeText' && raw.contentsObj?.str?.trim()) {
+      out.push(raw.contentsObj.str.trim());
+    }
+  }
+  return out;
+}
+
 interface TextItemLike {
   str?: string;
   hasEOL?: boolean;
@@ -61,7 +95,9 @@ export async function extractPdfText(buffer: Buffer, opts: { maxPages?: number }
         if (raw.hasEOL) out += '\n';
         if (y !== undefined) lastY = y;
       }
-      pages.push(`[PAGE ${n}]\n${out.replace(/[ \t]+\n/g, '\n').trim()}`);
+      const fields = await formValues(page);
+      const body = out.replace(/[ \t]+\n/g, '\n').trim();
+      pages.push(`[PAGE ${n}]\n${body}${fields.length ? `\n\nForm field values:\n${fields.join('\n')}` : ''}`);
       page.cleanup();
     }
 
