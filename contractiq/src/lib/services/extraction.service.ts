@@ -3,8 +3,9 @@ import type OpenAI from 'openai';
 import { buildExtractionMessages, EXTRACTION_PROMPT_VERSION } from '@/lib/ai/prompts/extraction/v1';
 import type { RequestedTerm } from '@/lib/ai/prompts/extraction/types';
 import { mockExtraction } from '@/lib/ai/mock';
-import { getOpenAI, hashUserId, mapOpenAiError, withRetry } from '@/lib/ai/openai-client';
-import { EXTRACTION_JSON_SCHEMA, extractionOutputSchema, type ExtractionOutput } from '@/lib/ai/schemas';
+import { mapOpenAiError, withRetry } from '@/lib/ai/openai-client';
+import { agentModelLabel, azureErrorDetail, callAgent, extractJsonObject, flattenForAgent } from '@/lib/azure';
+import { extractionOutputSchema, type ExtractionOutput } from '@/lib/ai/schemas';
 import { validateTerms } from '@/lib/ai/validate-terms';
 import { AppError, ERROR_CATALOG, mapPgError, type ErrorCode } from '@/lib/api/errors';
 import type { AuthUser } from '@/lib/api/handler';
@@ -35,38 +36,25 @@ interface Usage {
 }
 
 const REPAIR_PROMPT =
-  'Your previous response was not valid JSON matching the schema. Return only the JSON object.';
+  'Your previous reply was not a valid JSON object of the required shape. Reply again with ONLY the JSON object.';
 
-function parseOutput(message: OpenAI.Chat.Completions.ChatCompletionMessage): ExtractionOutput | null {
-  if (message.refusal || !message.content) return null;
+function parseOutput(text: string): ExtractionOutput | null {
   try {
-    const parsed = extractionOutputSchema.safeParse(JSON.parse(message.content));
+    const parsed = extractionOutputSchema.safeParse(extractJsonObject(text));
     return parsed.success ? parsed.data : null;
   } catch {
     return null;
   }
 }
 
-async function callModel(messages: ChatMessages, userId: string, usage: Usage) {
-  const completion = await withRetry(() =>
-    getOpenAI().chat.completions.create(
-      {
-        model: env.OPENAI_EXTRACTION_MODEL,
-        temperature: 0.1,
-        max_tokens: 2000,
-        response_format: { type: 'json_schema', json_schema: EXTRACTION_JSON_SCHEMA as never },
-        messages,
-        user: hashUserId(userId),
-        store: false,
-      },
-      { signal: AbortSignal.timeout(25_000) },
-    ),
-  );
-  usage.prompt += completion.usage?.prompt_tokens ?? 0;
-  usage.completion += completion.usage?.completion_tokens ?? 0;
-  const message = completion.choices[0]?.message;
-  if (!message) throw new AppError('AI_INVALID_OUTPUT');
-  return message;
+// One agent call. The agent can take 20–30 s; two attempts fit inside the 90 s route budget.
+async function callModel(messages: ChatMessages, usage: Usage): Promise<string> {
+  const result = await withRetry(() => callAgent(flattenForAgent(messages), { signal: AbortSignal.timeout(40_000) }), {
+    attempts: 2,
+  });
+  usage.prompt += result.inputTokens;
+  usage.completion += result.outputTokens;
+  return result.text;
 }
 
 // Runs AI extraction for one contract — docs/specs/ai-extraction-pipeline.md §3.
@@ -110,7 +98,7 @@ export async function processContract(
 
   const t0 = Date.now();
   const usage: Usage = { prompt: 0, completion: 0 };
-  const model = env.AI_MOCK_MODE ? 'mock' : env.OPENAI_EXTRACTION_MODEL;
+  const model = env.AI_MOCK_MODE ? 'mock' : agentModelLabel();
 
   try {
     const { data: custom, error: customError } = await supabase
@@ -147,12 +135,11 @@ export async function processContract(
         requested,
         contractText,
       });
-      const first = await callModel(messages, user.id, usage);
+      const first = await callModel(messages, usage);
       output = parseOutput(first);
       if (!output) {
         const repaired = await callModel(
-          [...messages, { role: 'assistant', content: first.content ?? '' }, { role: 'user', content: REPAIR_PROMPT }],
-          user.id,
+          [...messages, { role: 'assistant', content: first }, { role: 'user', content: REPAIR_PROMPT }],
           usage,
         );
         output = parseOutput(repaired);
@@ -234,7 +221,8 @@ export async function processContract(
       success: false,
       errorCode: code,
     });
-    logger.error('extraction.failed', { userId: user.id, contractId: id, code, err });
-    throw err instanceof AppError ? err : new AppError(code, undefined, { cause: err });
+    const detail = err instanceof AppError ? undefined : azureErrorDetail(err);
+    logger.error('extraction.failed', { userId: user.id, contractId: id, code, detail });
+    throw err instanceof AppError ? err : new AppError(code, { detail }, { cause: err });
   }
 }

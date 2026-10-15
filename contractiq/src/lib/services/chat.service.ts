@@ -1,6 +1,7 @@
 import 'server-only';
 import { mockChatAnswer } from '@/lib/ai/mock';
-import { getOpenAI, hashUserId, mapOpenAiError, withRetry } from '@/lib/ai/openai-client';
+import { mapOpenAiError, withRetry } from '@/lib/ai/openai-client';
+import { agentModelLabel, azureErrorDetail, callAgent, flattenForAgent } from '@/lib/azure';
 import { buildChatMessages, CHAT_PROMPT_VERSION } from '@/lib/ai/prompts/chat/v2';
 import { isMissingAttribution, parseCitations } from '@/lib/chat/citations';
 import { prepareTurn } from '@/lib/chat/memory';
@@ -140,7 +141,7 @@ export async function streamAnswer(
     includeContract: turn.includeContract,
     message,
   });
-  const model = env.AI_MOCK_MODE ? 'mock' : env.OPENAI_CHAT_MODEL;
+  const model = env.AI_MOCK_MODE ? 'mock' : agentModelLabel();
   const t0 = Date.now();
 
   const stream = new ReadableStream<Uint8Array>({
@@ -211,31 +212,13 @@ export async function streamAnswer(
             send('token', { t: chunk });
           }
         } else {
-          const signal = AbortSignal.any([requestSignal, AbortSignal.timeout(45_000)]);
-          // Retries only cover failures before streaming starts.
-          const completion = await withRetry(() =>
-            getOpenAI().chat.completions.create(
-              {
-                model: env.OPENAI_CHAT_MODEL,
-                temperature: 0.4,
-                max_tokens: 1000,
-                stream: true,
-                stream_options: { include_usage: true },
-                messages,
-                user: hashUserId(user.id),
-                store: false,
-              },
-              { signal },
-            ),
-          );
-          for await (const chunk of completion) {
-            const delta = chunk.choices[0]?.delta?.content;
-            if (delta) {
-              full += delta;
-              send('token', { t: delta });
-            }
-            if (chunk.usage) usage = chunk.usage;
-          }
+          // Azure AI Foundry agent: one non-streaming call (can take 20–30 s). The full answer is
+          // delivered as a single SSE token so the chat UI, memory layer and persistence are unchanged.
+          const signal = AbortSignal.any([requestSignal, AbortSignal.timeout(55_000)]);
+          const result = await withRetry(() => callAgent(flattenForAgent(messages), { signal }), { attempts: 1 });
+          usage = { prompt_tokens: result.inputTokens, completion_tokens: result.outputTokens };
+          full = result.text;
+          if (full) send('token', { t: full });
         }
         send('done', await finalize(false));
       } catch (err) {
@@ -256,9 +239,10 @@ export async function streamAnswer(
             success: false,
             errorCode: code,
           });
-          send('error', { code, message: ERROR_CATALOG[code].message, userMessageId });
+          // Surface the real Azure error text so credential/endpoint problems can be diagnosed.
+          send('error', { code, message: ERROR_CATALOG[code].message, detail: azureErrorDetail(err), userMessageId });
         }
-        logger.error('chat.failed', { userId: user.id, contractId, code, partial: !!full });
+        logger.error('chat.failed', { userId: user.id, contractId, code, partial: !!full, detail: azureErrorDetail(err) });
       } finally {
         if (!closed) {
           try {

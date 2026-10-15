@@ -15,6 +15,7 @@ export interface ChatStreamError {
   retryOfMessageId?: string;
   retryContent?: string;
   retryAfter?: number;
+  detail?: string;
 }
 
 // Streams an answer over SSE and folds the result into the chat history cache (contract-chat.md §7).
@@ -127,7 +128,7 @@ export function useChatStream(contractId: string) {
               setStatus('idle');
               return;
             }
-            throw new ApiError(String(data.code), 502, String(data.message));
+            throw new ApiError(String(data.code), 502, String(data.message), undefined, undefined, undefined, data.detail ? String(data.detail) : undefined);
           }
         }
         // Stream closed without a terminal event.
@@ -154,6 +155,7 @@ export function useChatStream(contractId: string) {
           retryOfMessageId: userMessageId ?? undefined,
           retryContent: message,
           retryAfter: e.retryAfter,
+          detail: e.detail,
         });
         if (!userMessageId) setPendingUser(null);
         setStatus('error');

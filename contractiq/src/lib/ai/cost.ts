@@ -5,8 +5,8 @@ import { env } from '@/lib/env';
 export const calcCostUsd = (promptTokens: number, completionTokens: number): number =>
   Number(
     (
-      (promptTokens * env.OPENAI_PRICE_INPUT_PER_1M +
-        completionTokens * env.OPENAI_PRICE_OUTPUT_PER_1M) /
+      (promptTokens * env.AI_PRICE_INPUT_PER_1M +
+        completionTokens * env.AI_PRICE_OUTPUT_PER_1M) /
       1_000_000
     ).toFixed(6),
   );

@@ -119,6 +119,7 @@ export function ChatTab({
             {chat.status === 'error' && chat.error && chat.error.code !== 'RATE_LIMITED' && (
               <Alert tone={blocked ? 'warning' : 'danger'}>
                 {chat.error.message}{' '}
+                {chat.error.detail && <span className="mt-1 block break-words font-mono text-body-sm">{chat.error.detail}</span>}
                 {!blocked && (
                   <button type="button" className="font-medium underline" onClick={chat.retry}>
                     Retry

@@ -59,6 +59,7 @@ export class AppError extends Error {
       retryAfterSeconds?: number;
       fieldErrors?: Record<string, string[]>;
       reason?: string;
+      detail?: string; // real provider error text (Azure), surfaced for diagnosis
     },
     options?: { cause?: unknown },
   ) {
@@ -88,6 +89,7 @@ export function toErrorResponse(err: AppError, requestId: string) {
         requestId,
         ...(err.meta?.fieldErrors ? { fieldErrors: err.meta.fieldErrors } : {}),
         ...(err.meta?.reason ? { reason: err.meta.reason } : {}),
+        ...(err.meta?.detail ? { detail: err.meta.detail } : {}),
       },
     },
     { status: err.status, headers },

@@ -10,6 +10,7 @@ export class ApiError extends Error {
     public readonly fieldErrors?: Record<string, string[]>,
     public readonly retryAfter?: number,
     public readonly reason?: string,
+    public readonly detail?: string,
   ) {
     super(message);
     this.name = 'ApiError';
@@ -44,6 +45,7 @@ export async function apiFetch<T>(input: string, init: RequestInit = {}): Promis
       body?.error.fieldErrors,
       retryAfter,
       body?.error.reason,
+      body?.error.detail,
     );
   }
 

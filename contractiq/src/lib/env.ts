@@ -8,11 +8,15 @@ const serverEnvSchema = z.object({
   NEXT_PUBLIC_SUPABASE_URL: z.string().url(),
   NEXT_PUBLIC_SUPABASE_ANON_KEY: z.string().min(20),
   SUPABASE_SERVICE_ROLE_KEY: z.string().min(20),
-  OPENAI_API_KEY: z.string().startsWith('sk-'),
-  OPENAI_EXTRACTION_MODEL: z.string().min(1).default('gpt-4o'),
-  OPENAI_CHAT_MODEL: z.string().min(1).default('gpt-4o'),
-  OPENAI_PRICE_INPUT_PER_1M: z.coerce.number().positive().default(2.5),
-  OPENAI_PRICE_OUTPUT_PER_1M: z.coerce.number().positive().default(10),
+  // Azure AI Foundry agent (skills/azure-ai-foundry)
+  AZURE_API_KEY: z.string().min(20),
+  AZURE_AGENT_ENDPOINT: z.string().url().refine((u) => u.includes('services.ai.azure.com'), {
+    message: 'Use the AI Foundry project/agent endpoint (services.ai.azure.com), not an openai.azure.com URL',
+  }),
+  AZURE_AGENT_NAME: z.string().min(1),
+  // Cost logging (defaults: gpt-4.1-mini list price per 1M tokens)
+  AI_PRICE_INPUT_PER_1M: z.coerce.number().positive().default(0.4),
+  AI_PRICE_OUTPUT_PER_1M: z.coerce.number().positive().default(1.6),
   COST_ALERT_DAILY_USD: z.coerce.number().positive().default(15),
   CRON_SECRET: z.string().min(32),
   MAX_CHAT_HISTORY: z.coerce.number().int().min(1).max(1000).default(100),

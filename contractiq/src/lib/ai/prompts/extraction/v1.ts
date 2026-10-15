@@ -5,7 +5,7 @@ import { MSA_EXAMPLES } from './examples/msa';
 import { NDA_EXAMPLES } from './examples/nda';
 import type { RequestedTerm } from './types';
 
-export const EXTRACTION_PROMPT_VERSION = 'extract-v1.0';
+export const EXTRACTION_PROMPT_VERSION = 'extract-v1.1-azure';
 
 const contractTypeLong = (t: ContractType) => `${CONTRACT_TYPE_LABELS[t]} (${t})`;
 
@@ -26,7 +26,8 @@ Rules:
    1–49   weak or uncertain evidence; the user must verify
    0      not found (value null)
 8. Never give legal advice or opinions about whether terms are favourable.
-Return JSON matching the provided schema.`;
+9. Output format: reply with ONLY one JSON object — no markdown, no code fences, no text before or after it — exactly of this shape:
+{"terms":[{"term_key":string,"term_name":string,"value":string|null,"page_number":integer|null,"confidence_score":integer,"source_sentence":string|null}]}`;
 
 export function renderUserMessage(
   contractType: ContractType,

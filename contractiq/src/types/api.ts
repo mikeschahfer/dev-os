@@ -102,5 +102,6 @@ export interface ApiErrorBody {
     requestId?: string;
     fieldErrors?: Record<string, string[]>;
     reason?: string;
+    detail?: string;
   };
 }

@@ -108,7 +108,11 @@ export function UploadWizard({
         {store.contract && !busy && <UploadedFileSummary contract={store.contract} />}
 
         {store.step === 'preview' && process.error && process.error.code !== 'QUOTA_EXCEEDED' && (
-          <ProcessingError message={process.error.message} onRetry={runProcess} retrying={process.isPending} />
+          <ProcessingError
+            message={process.error.detail ? `${process.error.message} (${process.error.detail})` : process.error.message}
+            onRetry={runProcess}
+            retrying={process.isPending}
+          />
         )}
 
         {store.step === 'processing' || compiling ? (

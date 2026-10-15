@@ -45,8 +45,13 @@ export function ResultsLayout({
   const isDesktop = useIsDesktop();
   const query = useContract(initialData.contract.id, initialData);
   const process = useProcessContract(initialData.contract.id);
-  const { activeTab, setActiveTab, reset: resetUi } = useResultsUiStore();
-  const { setTarget, userHasNavigated, reset: resetViewer } = useViewerStore();
+  // Individual selectors: stable references for effect dependencies (no re-render loops).
+  const activeTab = useResultsUiStore((s) => s.activeTab);
+  const setActiveTab = useResultsUiStore((s) => s.setActiveTab);
+  const resetUi = useResultsUiStore((s) => s.reset);
+  const setTarget = useViewerStore((s) => s.setTarget);
+  const userHasNavigated = useViewerStore((s) => s.userHasNavigated);
+  const resetViewer = useViewerStore((s) => s.reset);
   const [tourOpen, setTourOpen] = useState(showOnboarding);
   const autoNavigated = useRef(false);
 
